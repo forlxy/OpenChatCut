@@ -72,6 +72,7 @@ function spawnChild(home: string): ChildProcess {
     env: {
       ...process.env,
       HOME: home,
+      ...(process.platform === 'win32' ? { USERPROFILE: home } : {}),
       OPENCHATCUT_EXPORT_RECOVERY_RACE_CHILD: '1',
     },
     stdio: ['ignore', 'inherit', 'inherit', 'ipc'],

@@ -9,8 +9,15 @@ import {
 import { toMcpContent, toStructuredContent } from './mcp.ts';
 import { projectMcpReply } from './mcp-result.ts';
 import { mcpServerInstructions } from './mcp-instructions.ts';
+import { mcpSessionStatus } from './mcp-session-status.ts';
 
 const object = { ok: true };
+for (const mode of ['offline', 'browser'] as const) {
+  const status = mcpSessionStatus({ bindingMode: mode, connectedProjectIds: mode === 'browser' ? ['project'] : [], editors: [], binding: null, toolCount: 1, exposure: {} });
+  assert.deepEqual(status.capabilities, {
+    projectData: true, visualInspection: mode === 'browser', skillDiscovery: mode === 'browser', manualApproval: mode === 'browser',
+  });
+}
 const recoveryInstructions = mcpServerInstructions('test-baseline', 'compatibility');
 assert.match(recoveryInstructions, /list_edit_sessions/);
 assert.match(recoveryInstructions, /recover_edit_session/);

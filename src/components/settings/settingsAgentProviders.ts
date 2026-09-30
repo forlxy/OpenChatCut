@@ -142,7 +142,8 @@ export const PROXY_PAGE: SettingsVendorPage = {
   note: '国内网络访问海外模型（Gemini / OpenAI / Anthropic / Mistral 等）失败时，'
     + '可在此填写本地代理地址（如 http://127.0.0.1:7890）。'
     + '留空则使用系统环境变量（HTTPS_PROXY / HTTP_PROXY）。'
-    + '生效范围：Agent 模型、AI 生成、模型下载、R2 云同步。',
+    + '生效范围：Agent 模型、AI 生成、模型下载、R2 云同步。'
+    + '模型包优先从 ModelScope 直连下载，Hugging Face 等备用源使用此代理。修改代理后，正在下载的任务需取消并重试。',
   fields: [text('PROXY_URL', '代理地址', '例如 http://127.0.0.1:7890')],
 };
 

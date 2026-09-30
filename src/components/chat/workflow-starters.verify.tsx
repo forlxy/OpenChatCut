@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createServer } from 'vite';
+import { CREATIVE_SKILL_METADATA } from '../../agent/skills/skills-catalog';
 
 const localeModuleId = '\0workflow-picker-test-locale';
 const vite = await createServer({
@@ -80,7 +81,7 @@ try {
 assert.match(pickerMarkup, /<div class="cc-creative-mode-grid">/, 'professional workflows should use the dedicated two-column grid');
 assert.equal(
   (pickerMarkup.match(/class="cc-creative-mode-row cc-creative-mode-card"/g) ?? []).length,
-  11,
+  CREATIVE_SKILL_METADATA.length,
   'every built-in workflow should render as an independently bordered card',
 );
 assert.equal((pickerMarkup.match(/aria-pressed="true"/g) ?? []).length, 1, 'exactly one workflow should expose selected state');
@@ -88,10 +89,14 @@ assert.match(pickerMarkup, /长视频转短视频/);
 assert.match(pickerMarkup, /技能创作器/);
 assert.match(pickerMarkup, /新闻智能粗剪/);
 assert.match(pickerMarkup, /直播智能切片/);
+assert.match(pickerMarkup, /Vlog 剪辑/);
 assert.match(pendingComposerMarkup, /请等待附件导入完成。/, 'pending attachment reason should be visible');
 assert.match(pendingComposerMarkup, /aria-describedby="cc-chat-composer-import-status"/, 'textarea should describe its pending gate');
 const pendingSubmitButton = pendingComposerMarkup.match(/<button[^>]*class="cc-chat-send-btn"[^>]*>/)?.[0];
 assert.ok(pendingSubmitButton, 'pending composer should render the submit button');
 assert.match(pendingSubmitButton, /\bdisabled(?:=""|(?=[\s>]))/, 'pending attachments should disable the submit button');
+const enhanceButton = pendingComposerMarkup.match(/<button[^>]*class="cc-chat-enhance-btn"[^>]*>/)?.[0];
+assert.ok(enhanceButton, 'prompt optimization is directly visible below the input');
+assert.match(enhanceButton, /\bdisabled(?:=""|(?=[\s>]))/, 'pending attachments also gate prompt optimization');
 
 console.log('workflow-starters.verify: picker layout and pending composer gate passed');

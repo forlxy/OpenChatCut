@@ -18,7 +18,7 @@ const EXPECTED = [
   'openchatcut-plugin-basics', 'product-ad-video-script',
   'product-help', 'shader-gen', 'skill-creator', 'storyboard-shot-breakdown', 'talking-head-guide',
   'transcription', 'verification', 'video-gen', 'video-thumbnail-generator', 'voice',
-  'widget-forms',
+  'widget-forms', 'vlog-edit',
 ];
 
 // Every expected skill dir is present, and no extras.

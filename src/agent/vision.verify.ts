@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { resolveVisionModel, type VisionModelConfig } from './visionConfig';
-import { maybeDescribeFramesResult } from './vision';
+import { resolveVisionModel, setVisionModelConfig, type VisionModelConfig } from './visionConfig';
+import { describeImagesForTextModel, maybeDescribeFramesResult } from './vision';
 import type { AgentModelChoice } from './model-selection';
 import type { ModelCapabilities } from '../../shared/model-capabilities';
 
@@ -75,4 +75,38 @@ assert.equal(await unchanged(null, () => choice(false)), true);
 const noImages = { ok: true };
 assert.equal(await maybeDescribeFramesResult(noImages, 'qa-evidence', undefined, () => choice(false)), noImages);
 
-console.log('vision.verify: ok (resolve + short-circuit paths)');
+// Bound actual in-flight calls, not just the size of an eagerly queued array.
+const vision = { provider: 'gemini' as const, model: 'test', openAiApiMode: 'chat' as const };
+let active = 0;
+let peak = 0;
+let calls = 0;
+const described = await describeImagesForTextModel([{
+  role: 'user', content: Array.from({ length: 9 }, (_, i) => ({ type: 'image' as const, image: `data:image/jpeg;base64,${i}` })),
+}], vision, undefined, async (_vision, image) => {
+  active += 1;
+  peak = Math.max(peak, active);
+  await new Promise((resolve) => setTimeout(resolve, 1));
+  active -= 1;
+  calls += 1;
+  return image.base64;
+});
+assert.equal(calls, 9);
+assert.equal(peak, 4);
+assert.match(JSON.stringify(described), /8/);
+
+setVisionModelConfig(CUSTOM);
+try {
+  const frames = { __images: [{ frame: 0, base64: 'first' }, { frame: 90, base64: 'last' }] };
+  const all = await maybeDescribeFramesResult(frames, 'asset-frames', undefined, () => choice(false), async (_vision, image) => image.base64) as { visualSummary: string };
+  assert.match(all.visualSummary, /first/);
+  assert.match(all.visualSummary, /last/);
+  assert.match(all.visualSummary, /90/);
+  const failed = await maybeDescribeFramesResult(frames, 'asset-frames', undefined, () => choice(false), async (_vision, image) => {
+    if (image.base64 === 'last') throw new Error('unavailable');
+    return 'first';
+  });
+  assert.equal(failed, frames, 'a failed description must not drop remaining image evidence');
+} finally {
+  setVisionModelConfig({ mode: 'follow' });
+}
+console.log('vision.verify: resolution, bounded concurrency and complete frame evidence passed');

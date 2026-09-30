@@ -261,9 +261,15 @@ function useMessageActions(
     if (!composer.input.trim() || composer.enhancing || agent.running) return;
     if (!isAgentModelReady(getAgentModelSnapshot()) || pendingChatAttachmentCount(composer.attachmentLifecycleRef.current) > 0) return;
     composer.setEnhancing(true);
+    composer.setPasteError(null);
+    const original = composer.input;
     try {
-      composer.setInput(await agent.enhance(composer.input));
+      const enhanced = await agent.enhance(original);
+      // The user can keep typing or send while the model is working.
+      composer.setInput((current) => current === original ? enhanced : current);
       composer.taRef.current?.focus();
+    } catch (error) {
+      composer.setPasteError(error instanceof Error ? error.message : String(error));
     } finally {
       composer.setEnhancing(false);
     }

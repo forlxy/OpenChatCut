@@ -193,12 +193,7 @@ if (!process.env.HF_PROXY_SKIP_INTEGRATION) {
   }
 }
 
-const originalHome = process.env.HOME;
-const originalUserProfile = process.env.USERPROFILE;
-// os.homedir() resolves USERPROFILE on Windows; HOME alone only covers POSIX.
-process.env.HOME = directory;
-process.env.USERPROFILE = directory;
-assert.equal(modelCacheDir(), join(directory, '.openchatcut', 'asr-models'));
+assert.equal(modelCacheDir(directory), join(directory, '.openchatcut', 'asr-models'));
 const resolveInstalled = async (target: ProxyTarget) => {
   if (target.modelId !== asrTarget.modelId
     || target.revision !== asrTarget.revision
@@ -233,13 +228,9 @@ try {
     `http://127.0.0.1:${address.port}/unlisted/repository/resolve/${RHYTHM_REVISION}/model.onnx`,
   );
   assert.equal(arbitrary.status, 400);
-  await assert.rejects(stat(modelCacheDir()), { code: 'ENOENT' });
+  await assert.rejects(stat(modelCacheDir(directory)), { code: 'ENOENT' });
 } finally {
   await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
-  if (originalHome === undefined) delete process.env.HOME;
-  else process.env.HOME = originalHome;
-  if (originalUserProfile === undefined) delete process.env.USERPROFILE;
-  else process.env.USERPROFILE = originalUserProfile;
   await rm(directory, { recursive: true, force: true });
 }
 

@@ -126,7 +126,11 @@ export function ChatComposer(props: ChatComposerProps) {
   };
   const attachmentsPending = hasPendingComposerAttachment(pasting, pendingAttachmentCount);
   const canSend = !!value.trim() && !running && !attachmentsPending && modelReady;
-  const canEnhance = !!value.trim() && !enhancing && !running && !attachmentsPending && modelReady;
+  // Prompt rewriting uses the configured API model directly. Codex remains
+  // available for normal chat runs, but should not expose a button that will
+  // fail only after the user clicks it.
+  const canEnhance = !!value.trim() && !enhancing && !running && !attachmentsPending
+    && modelReady && activeModel?.backend === 'api';
   const pendingReason = t('请等待附件导入完成。');
   const sendTitle = attachmentsPending
     ? pendingReason

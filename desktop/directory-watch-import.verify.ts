@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import type { Stats } from 'node:fs';
+import { join, resolve } from 'node:path';
 import {
   DirectoryDestinationChangedError,
   DirectoryImportCancelledError,
@@ -10,6 +11,8 @@ import {
 
 const ROOT = '/watch';
 const SOURCE = `${ROOT}/clip.mov`;
+const PINNED_UPLOADS = '/uploads';
+const RESOLVED_UPLOADS = resolve(PINNED_UPLOADS);
 const HASH_A = 'aa'.repeat(32);
 const HASH_B = 'bb'.repeat(32);
 
@@ -17,6 +20,22 @@ const HASH_B = 'bb'.repeat(32);
 // directory gains a Windows drive prefix; compare paths positionally instead.
 const asPosixPaths = (paths: readonly string[]): Set<string> =>
   new Set(paths.map((path) => path.replace(/\\/g, '/').replace(/^[A-Za-z]:/, '')));
+
+function expectedCleanupFor(
+  storedName = 'id.mov',
+  uploadDirectory = RESOLVED_UPLOADS,
+): string[] {
+  const stem = storedName.replace(/\.[^.]+$/, '');
+  return [PINNED_UPLOADS, uploadDirectory].flatMap((directory) => [
+    join(directory, storedName),
+    join(directory, `${stem}.mp4`),
+    join(directory, `${stem}.alpha.webm`),
+    join(directory, '.references', `${storedName}.json`),
+  ]);
+}
+
+const expectedCleanup = (uploadDirectory = RESOLVED_UPLOADS): string[] =>
+  expectedCleanupFor('id.mov', uploadDirectory);
 
 function fileStats(size = 100, mtimeMs = 10, ino = 20): Stats {
   return {
@@ -36,7 +55,7 @@ function request(
     sourcePath: SOURCE,
     root: ROOT,
     name: 'clip.mov',
-    pinnedUploadDirectory: '/uploads',
+    pinnedUploadDirectory: PINNED_UPLOADS,
     knownHashes,
     cancelled,
     signal,
@@ -63,8 +82,8 @@ function harness(
   result.dependencies = {
     realpath: async (path) => path,
     stat: async () => fileStats(),
-    uploadDirectory: () => '/uploads',
-    canonicalUploadDirectory: async () => '/uploads',
+    uploadDirectory: () => PINNED_UPLOADS,
+    canonicalUploadDirectory: async () => PINNED_UPLOADS,
     importLocalMedia: async () => {
       result.imports += 1;
       return { src: '/media/uploads/id.mov', storedName: 'id.mov', contentHash: HASH_A };
@@ -108,10 +127,7 @@ const duplicateResult = await importDirectoryCandidate(
 assert.equal(duplicateResult.status, 'duplicate');
 assert.deepEqual(
   asPosixPaths(duplicate.removed),
-  new Set([
-    '/uploads/id.mov', '/uploads/id.mp4', '/uploads/id.alpha.webm',
-    '/uploads/.references/id.mov.json',
-  ]),
+  asPosixPaths(expectedCleanup()),
   'duplicate hashes must delete every original/proxy/normalization candidate',
 );
 assert.equal(duplicate.probes, 0, 'hash dedupe must happen before probe or proxy work');
@@ -124,10 +140,7 @@ assert.deepEqual(
 );
 assert.deepEqual(
   asPosixPaths(probeFailure.removed),
-  new Set([
-    '/uploads/id.mov', '/uploads/id.mp4', '/uploads/id.alpha.webm',
-    '/uploads/.references/id.mov.json',
-  ]),
+  asPosixPaths(expectedCleanup()),
   'probe failure must remove all newly created output candidates',
 );
 
@@ -144,10 +157,7 @@ await assert.rejects(
 );
 assert.deepEqual(
   asPosixPaths(cancelledCopy.removed),
-  new Set([
-    '/uploads/id.mov', '/uploads/id.mp4', '/uploads/id.alpha.webm',
-    '/uploads/.references/id.mov.json',
-  ]),
+  asPosixPaths(expectedCleanup()),
   'cancellation winning after copy must clean the unpublished copy',
 );
 
@@ -170,10 +180,7 @@ normalizeAbort.abort(new DirectoryImportCancelledError());
 await assert.rejects(normalizePending, DirectoryImportCancelledError);
 assert.deepEqual(
   asPosixPaths(cancelledNormalize.removed),
-  new Set([
-    '/uploads/id.mov', '/uploads/id.mp4', '/uploads/id.alpha.webm',
-    '/uploads/.references/id.mov.json',
-  ]),
+  asPosixPaths(expectedCleanup()),
   'stop must abort backend normalization and remove every owned output before settling',
 );
 
@@ -188,12 +195,7 @@ await assert.rejects(
 );
 assert.deepEqual(
   asPosixPaths(destinationChanged.removed),
-  new Set([
-    '/uploads/id.mov', '/uploads/id.mp4', '/uploads/id.alpha.webm',
-    '/uploads/.references/id.mov.json',
-    '/changed/id.mov', '/changed/id.mp4', '/changed/id.alpha.webm',
-    '/changed/.references/id.mov.json',
-  ]),
+  asPosixPaths(expectedCleanup(resolve('/changed'))),
   'MEDIA_DIR changes during copy must clean both pinned and newly selected destinations',
 );
 
@@ -209,10 +211,7 @@ if (transparentResult.status === 'imported') {
   assert.equal(transparentResult.prepared.file.sourceFps, 30);
   assert.deepEqual(
     asPosixPaths(transparentResult.prepared.createdPaths),
-    new Set([
-      '/uploads/id.mov', '/uploads/id.mp4', '/uploads/id.alpha.webm',
-      '/uploads/.references/id.mov.json',
-    ]),
+    asPosixPaths(expectedCleanup()),
     'the opaque grant must retain every possible renderer output for later ack cleanup',
   );
 }

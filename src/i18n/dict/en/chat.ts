@@ -292,6 +292,7 @@ export default {
   // ── Creation skill summary (the skill name is in the catalog and comes with its own English name, not in the dictionary) ──
   '把一条长播客、访谈、课程或直播剪成适合社媒发布的短视频和高光。': 'Cut one long podcast, interview, course, or livestream into social-ready shorts and highlights.',
   '把产品、活动、旅行或游戏素材剪成适合社媒发布的 Reels。': 'Turn product, event, travel, or gameplay footage into social-ready reels.',
+  '剪辑日常、旅行与回忆视频，可指定时长、画幅、节奏、原声、字幕和配乐。': 'Edit everyday, travel and retrospective vlogs with duration, framing, pacing, original sound, captions and music preferences.',
   '规划并制作 AI 电影感短片，覆盖故事、镜头、提示词、连续性和最终检查。': 'Plan and produce AI cinematic shorts — story, shots, prompts, continuity, and final checks.',
   '把产品或页面转成广告角度、开头钩子、分镜、字幕、CTA 和视觉方向。': 'Turn a product or page into ad angles, hooks, storyboards, captions, CTAs, and visual direction.',
   '把主题、脚本、配音、产品逻辑或数据做成完整解说视频。': 'Turn a topic, script, voiceover, product logic, or data into a complete explainer video.',

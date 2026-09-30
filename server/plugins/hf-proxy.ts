@@ -100,8 +100,8 @@ export function __getAbsentSourcesForVerify(): ReadonlyMap<string, readonly stri
 }
 
 /** Shared user-data cache; never exposed through public/ or bundled into dist. */
-export function modelCacheDir(): string {
-  return modelCachePath(homedir());
+export function modelCacheDir(baseDir = homedir()): string {
+  return modelCachePath(baseDir);
 }
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {

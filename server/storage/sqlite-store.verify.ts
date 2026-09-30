@@ -61,10 +61,12 @@ function readMigrationPhase(path: string): number | null {
 async function main(): Promise<void> {
   const home = mkdtempSync(join(tmpdir(), 'occ-sqlite-migration-'));
   const previousHome = process.env.HOME;
+  const previousUserProfile = process.env.USERPROFILE;
   const previousStore = process.env.OPENCHATCUT_GENERATION_JOB_STORE;
   const previousSwitch = process.env.OPENCHATCUT_SQLITE_STORE;
   const customJobsPath = join(home, 'custom-profile', 'jobs-ledger.json');
   process.env.HOME = home;
+  if (process.platform === 'win32') process.env.USERPROFILE = home;
   process.env.OPENCHATCUT_GENERATION_JOB_STORE = customJobsPath;
   delete process.env.OPENCHATCUT_SQLITE_STORE;
 
@@ -365,8 +367,15 @@ async function main(): Promise<void> {
       },
     });
   } finally {
+    // Close the DatabaseSync handle before removing the isolated profile on
+    // Windows, where an open WAL file makes recursive cleanup fail with EPERM.
+    try {
+      (await import('./sqlite-store.ts')).resetSqliteStoreForTests();
+    } catch { /* module may not have initialized before an early assertion */ }
     if (previousHome === undefined) delete process.env.HOME;
     else process.env.HOME = previousHome;
+    if (previousUserProfile === undefined) delete process.env.USERPROFILE;
+    else process.env.USERPROFILE = previousUserProfile;
     if (previousStore === undefined) delete process.env.OPENCHATCUT_GENERATION_JOB_STORE;
     else process.env.OPENCHATCUT_GENERATION_JOB_STORE = previousStore;
     if (previousSwitch === undefined) delete process.env.OPENCHATCUT_SQLITE_STORE;

@@ -158,8 +158,8 @@ export default {
   '全部引擎（含云端付费）': 'All engines (including paid cloud)',
   'BytePlus ModelArk 同一个 Key，图生 / 视频生成通用；与「Agent 大脑」的 BytePlus 配置各自独立。':
     'One BytePlus ModelArk key covers image and video generation; it is separate from the BytePlus configuration under Agent Brain.',
-  '国内网络访问海外模型（Gemini / OpenAI / Anthropic / Mistral 等）失败时，可在此填写本地代理地址（如 http://127.0.0.1:7890）。留空则使用系统环境变量（HTTPS_PROXY / HTTP_PROXY）。生效范围：Agent 模型、AI 生成、模型下载、R2 云同步。':
-    'If your network cannot reach overseas model APIs (Gemini / OpenAI / Anthropic / Mistral, etc.), enter a local proxy URL here, such as http://127.0.0.1:7890. Leave empty to use system environment variables (HTTPS_PROXY / HTTP_PROXY). Applies to Agent models, AI generation, model downloads, and R2 cloud sync.',
+  '国内网络访问海外模型（Gemini / OpenAI / Anthropic / Mistral 等）失败时，可在此填写本地代理地址（如 http://127.0.0.1:7890）。留空则使用系统环境变量（HTTPS_PROXY / HTTP_PROXY）。生效范围：Agent 模型、AI 生成、模型下载、R2 云同步。模型包优先从 ModelScope 直连下载，Hugging Face 等备用源使用此代理。修改代理后，正在下载的任务需取消并重试。':
+    'If your network cannot reach overseas model APIs, enter a local proxy URL such as http://127.0.0.1:7890. Leave empty to use HTTPS_PROXY / HTTP_PROXY. Applies to Agent models, AI generation, model downloads, and R2 sync. Model packs try ModelScope directly first; Hugging Face and other fallback sources use this proxy. Cancel and retry active downloads after changing the proxy.',
   '统一配置服务端访问海外 API 使用的代理地址。': 'Configure the proxy URL used by the server to access overseas APIs.',
   '网络代理': 'Network proxy',
   '界面': 'Interface',

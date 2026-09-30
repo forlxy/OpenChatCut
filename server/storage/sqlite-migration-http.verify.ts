@@ -16,7 +16,11 @@ const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve,
 async function main(): Promise<void> {
   const root = mkdtempSync(join(tmpdir(), 'occ-migrate-http-verify-'));
   const previousHome = process.env.HOME;
+  const previousUserProfile = process.env.USERPROFILE;
   process.env.HOME = root;
+  // os.homedir() follows USERPROFILE on Windows; isolate both variables so
+  // the migration status cannot see the developer's real JSON store.
+  if (process.platform === 'win32') process.env.USERPROFILE = root;
 
   const serverHandle: { close: () => void } = { close: () => undefined };
   try {
@@ -122,8 +126,13 @@ async function main(): Promise<void> {
     console.log('✓ migrate-http verify: read-status / no-origin 403 / seed / loopback migrate / status-after / idempotent all passed');
   } finally {
     serverHandle.close();
+    // DatabaseSync keeps the WAL connection open on Windows, where removing
+    // the temporary profile otherwise fails with EPERM after the assertions.
+    (await import('./sqlite-store.ts')).resetSqliteStoreForTests();
     if (previousHome === undefined) delete process.env.HOME;
     else process.env.HOME = previousHome;
+    if (previousUserProfile === undefined) delete process.env.USERPROFILE;
+    else process.env.USERPROFILE = previousUserProfile;
     rmSync(root, { recursive: true, force: true });
   }
 }

@@ -179,7 +179,11 @@ export async function generateAgentText(options: {
   prompt?: string;
   messages?: readonly unknown[];
   maxOutputTokens: number;
+  requireActiveApiModel?: boolean;
 }): Promise<string> {
+  if (options.requireActiveApiModel && getActiveAgentModelChoice()?.backend !== 'api') {
+    throw new Error('提示词优化需要先在模型选择器中选择已配置的 API 模型；当前订阅会话不支持独立文本调用。');
+  }
   const choice = generationChoice();
   const provider = choice?.provider ?? PROVIDER;
   const model = choice?.model ?? MODEL;

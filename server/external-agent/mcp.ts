@@ -104,7 +104,7 @@ async function callControlTool(
     const url = editorUrl(args, projectId, baseUrl);
     const binding = await targetMcpProject(session, projectId, url);
     await sendMcpToolListChangedIfChanged(session, mcpTools(session));
-    return { ok: true, bindingMode: bindingMode(session), binding, editorUrl: url };
+    return { ok: true, bindingMode: bindingMode(session), capabilities: mcpStatus(session).capabilities, binding, editorUrl: url };
   }
   if (name === 'get_editor_url') {
     const projectId = projectForRead(session, args.projectId);
@@ -170,7 +170,9 @@ function ensureMcpToolExposed(session: McpSession, name: string): void {
   if (mcpTools(session).some((tool) => tool.name === name)) return;
   throw new ExternalEditorCallError(
     'rejected',
-    `Tool "${name}" is not exposed in this MCP session. Call ToolSearch or load_skill first.`,
+    session.offline
+      ? `Tool "${name}" requires a connected browser editor. Open the editorUrl returned by target_project, reconnect this MCP client and target the project again. Offline bindings cannot inspect footage or load skills.`
+      : `Tool "${name}" is not exposed in this MCP session. Call ToolSearch or load_skill first.`,
   );
 }
 

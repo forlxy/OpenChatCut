@@ -68,19 +68,17 @@ export function initialAgentMessages(): LLMMessage[] {
 export async function enhanceAgentPrompt(draft: string): Promise<string> {
   const trimmed = draft.trim();
   if (!trimmed) return draft;
-  try {
-    // Deliberate lazy boundary: the prompt enhancer must not load provider SDKs before first use.
-    const { generateAgentText } = await import('./client');
-    const language = localeLanguageName(getLocale());
-    const output = (await generateAgentText({
-      maxOutputTokens: 400,
-      system: `You improve rough or conversational video-editing requests into one clear, specific, directly executable instruction. Write the instruction in ${language}, matching the selected interface language. Output only the rewritten instruction without explanation, quotation marks, or line breaks.`,
-      prompt: trimmed,
-    })).trim();
-    return output || draft;
-  } catch {
-    return draft;
-  }
+  // Deliberate lazy boundary: the prompt enhancer must not load provider SDKs before first use.
+  const { generateAgentText } = await import('./client');
+  const language = localeLanguageName(getLocale());
+  const output = (await generateAgentText({
+    maxOutputTokens: 1200,
+    requireActiveApiModel: true,
+    system: `Rewrite the user's video-editing request clearly in ${language}. Preserve their intent, explicit constraints, exact quoted text, asset references and uncertainty. Do not execute the request. Do not invent footage content, identities, labels, durations, music, styles, or permissions to generate/download assets. Organize only supplied details into goal, source material, editing requirements and delivery requirements, omitting empty sections. For vlog requests preserve chronology, original speech and ambient sound unless the user requests otherwise. Require inspecting actual source frames/transcripts before choosing cuts; filenames and similarity scores are not visual evidence. Output only the editable rewritten request, with short paragraphs when helpful.`,
+    prompt: trimmed,
+  })).trim();
+  if (!output) throw new Error('提示词优化未返回内容，请重试。');
+  return output;
 }
 
 export function appendRejectedProposal(messages: readonly LLMMessage[]): LLMMessage[] {

@@ -24,7 +24,9 @@ export type VisionPurpose = 'user-attachment' | 'timeline-frames' | 'asset-frame
 
 const VISION_SYSTEM = `You are a visual-analysis pass for a video editor whose main model cannot see images.
 Describe images in concise structured Chinese (中文) bullet points, focusing on facts a video editor needs.
-Never invent details; if something is unreadable or uncertain, say so explicitly.`;
+Never invent details; if something is unreadable or uncertain, say so explicitly.
+Separate directly visible evidence from interpretation. Do not infer identity, age, gender, genre, or animation style from blurry/old footage. Do not add speculative tags.
+Describe only the sampled frames, not unseen events or the whole video's story.`;
 
 const VISION_TIMEOUT_MS = 30_000;
 const VISION_MAX_OUTPUT_TOKENS = 1024;
@@ -104,20 +106,6 @@ function stripThinking(text: string): string {
   return text.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/<thinking>[\s\S]*?<\/thinking>/g, '');
 }
 
-/** Replace a single image with its description text (or a fallback). */
-async function describedPart(
-  image: ImagePayload,
-  vision: VisionModelRef,
-  signal?: AbortSignal,
-): Promise<UserPart> {
-  try {
-    const description = await describeImageWithVision(vision, image, 'user-attachment', signal);
-    return { type: 'text', text: `[图片内容] ${description}` };
-  } catch {
-    return { type: 'text', text: IMAGE_OMITTED_FALLBACK };
-  }
-}
-
 /**
  * Message-layer bypass: unify tool media into user attachments, then describe
  * every image part in place and replace it with text. Falls back to the
@@ -127,6 +115,7 @@ export async function describeImagesForTextModel(
   messages: readonly ModelMessage[],
   vision: VisionModelRef,
   signal?: AbortSignal,
+  describe: typeof describeImageWithVision = describeImageWithVision,
 ): Promise<ModelMessage[]> {
   const unified = prepareChatCompletionsMediaMessages(messages).messages;
   const result: ModelMessage[] = [];
@@ -136,25 +125,31 @@ export async function describeImagesForTextModel(
       continue;
     }
     const images: Array<{ image: ImagePayload }> = [];
-    const content: UserPart[] = [];
     for (const part of message.content) {
       const image = isImagePart(part);
       if (image) {
         images.push({ image });
-      } else {
-        content.push(part);
       }
     }
     if (!images.length) {
       result.push(message);
       continue;
     }
-    const replacements: Array<Promise<UserPart>> = [];
+    const described: UserPart[] = [];
     for (let index = 0; index < images.length; index += DESCRIBE_CONCURRENCY) {
+      signal?.throwIfAborted();
       const batch = images.slice(index, index + DESCRIBE_CONCURRENCY);
-      replacements.push(...batch.map(({ image }) => describedPart(image, vision, signal)));
+      described.push(...await Promise.all(batch.map(async ({ image }): Promise<UserPart> => {
+        try {
+          const description = await describe(vision, image, 'user-attachment', signal);
+          if (!description.trim()) throw new Error('Empty visual description');
+          return { type: 'text', text: `[图片内容，模型解读，未经人工核实] ${description}` };
+        } catch (error) {
+          if (signal?.aborted) throw error;
+          return { type: 'text', text: IMAGE_OMITTED_FALLBACK };
+        }
+      })));
     }
-    const described = await Promise.all(replacements);
     let at = 0;
     const rebuilt: UserPart[] = [];
     for (const part of message.content) {
@@ -181,6 +176,7 @@ export async function maybeDescribeFramesResult(
   purpose: 'timeline-frames' | 'asset-frames' | 'qa-evidence',
   signal?: AbortSignal,
   resolveChoice: () => AgentModelChoice | undefined = getActiveAgentModelChoice,
+  describe: typeof describeImageWithVision = describeImageWithVision,
 ): Promise<unknown> {
   if (!result || typeof result !== 'object' || Array.isArray(result)) return result;
   const record = result as Record<string, unknown>;
@@ -190,13 +186,24 @@ export async function maybeDescribeFramesResult(
   if (typeof first?.base64 !== 'string') return result;
   const vision = resolveVisionModel(resolveChoice());
   if (!vision) return result;
-  const description = await describeImageWithVision(
-    vision,
-    { base64: first.base64, mediaType: 'image/jpeg' },
-    purpose,
-    signal,
-  ).catch(() => null);
-  if (!description) return result;
+  const descriptions: string[] = [];
+  // Keep every sampled image represented. Never describe only the first and
+  // silently discard the remaining visual evidence.
+  for (let offset = 0; offset < images.length; offset += DESCRIBE_CONCURRENCY) {
+    signal?.throwIfAborted();
+    const batch = images.slice(offset, offset + DESCRIBE_CONCURRENCY);
+    if (batch.some((image) => typeof image?.base64 !== 'string')) return result;
+    const answers = await Promise.all(batch.map(async (image, index) => {
+      const description = await describe(
+        vision, { base64: image.base64, mediaType: 'image/jpeg' }, purpose, signal,
+      ).catch(() => { signal?.throwIfAborted(); return null; });
+      return description?.trim()
+        ? `[Image ${offset + index + 1}, frame ${image.frame ?? 'unknown'}] ${description}`
+        : null;
+    }));
+    if (answers.some((answer) => answer === null)) return result;
+    descriptions.push(...answers as string[]);
+  }
   const { __images, ...rest } = record;
-  return { ...rest, visualSummary: description };
+  return { ...rest, visualSummary: descriptions.join('\n'), visionModel: `${vision.provider}/${vision.model}`, visualEvidence: 'Model interpretation of sampled frames; uncertain details are not verified facts.' };
 }

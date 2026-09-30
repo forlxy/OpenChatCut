@@ -98,13 +98,17 @@ export function ComposerToolbar({
           <BarBtn icon="plus" title={t('引用媒体池素材')} active={pop === 'assets'} onClick={(event) => onTogglePop('assets', event.currentTarget)} />
           <BarBtn icon="wand" title={activeSkillName ? t('创作模式：{name}', { name: activeSkillName }) : t('创作模式')} active={pop === 'skill' || !!activeSkillName} onClick={(event) => onTogglePop('skill', event.currentTarget)} />
           <BarBtn icon="bookOpen" title={t('引用模板库')} active={pop === 'templates'} onClick={(event) => onTogglePop('templates', event.currentTarget)} />
-          <BarBtn icon="sparkles" title={enhancing ? t('增强中…') : t('增强提示词')} disabled={!canEnhance} onClick={onEnhance} />
         </span>
         <BarBtn icon="more" title={t('更多工具')} className="cc-composer-more-btn"
           active={pop === 'more' || secondaryActive}
           expanded={pop === 'more'} hasPopup
           onClick={(event) => onTogglePop('more', event.currentTarget)} />
       </div>
+      <button type="button" className="cc-chat-enhance-btn" disabled={!canEnhance} onClick={onEnhance}
+        title={t('增强提示词')}
+        style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4, padding: '5px 7px', border: `1px solid ${theme.border}`, borderRadius: 5, background: 'transparent', color: theme.text, fontSize: 12, cursor: canEnhance ? 'pointer' : 'default', opacity: canEnhance ? 1 : 0.5 }}>
+        <Icon name="sparkles" size={14} /><span>{enhancing ? t('增强中…') : t('增强提示词')}</span>
+      </button>
       {running ? (
         <button title={t('停止')} onClick={onStop} className="cc-chat-send-btn"
           style={{ width: 28, height: 28, borderRadius: '50%', border: 'none', background: theme.accent, cursor: 'pointer', display: 'grid', placeItems: 'center', flexShrink: 0 }}>

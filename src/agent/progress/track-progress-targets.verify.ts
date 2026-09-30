@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import type { AgentToolSchema } from '../tool-schema';
 import { withProgressTargets, execUploadProgress, execVisualAnalysisProgress } from './track-progress-targets';
-import { __resetVisualAnalysisJobs } from './visual-analysis-jobs';
+import { __resetVisualAnalysisJobs, enqueueVisualAnalysis, getVisualAnalysisJob } from './visual-analysis-jobs';
 import { makeDraft } from '../../editor/store';
 import type { TimelineState } from '../../editor/types';
 import { docFromTimeline } from '../../persist/projectStore';
@@ -83,3 +83,18 @@ const vaMissing = await execVisualAnalysisProgress({ action: 'status', assetIds:
 assert.equal(vaMissing.assets?.[0]?.status, 'not_found', 'unknown asset → not_found');
 
 console.log('track-progress-targets.check: ok');
+
+// An upload placeholder has no background operation that can finish it.
+// Polling must eventually report a retryable failure rather than run forever.
+const originalNow = Date.now;
+try {
+  Date.now = () => 1000;
+  enqueueVisualAnalysis({ id: 'stalled', kind: 'video', src: 'blob:pending' });
+  Date.now = () => 62_000;
+  assert.equal(getVisualAnalysisJob('stalled')?.status, 'failed');
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(getVisualAnalysisJob('stalled')?.status, 'failed', 'late result cannot revive an expired job');
+} finally {
+  Date.now = originalNow;
+  __resetVisualAnalysisJobs();
+}

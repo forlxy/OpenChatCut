@@ -12,6 +12,14 @@ interface CreativeSkillMetadata {
 
 export const CREATIVE_SKILL_METADATA: CreativeSkillMetadata[] = [
   {
+    id: '11111111-1240-4000-8000-000000000016',
+    slug: 'vlog-edit',
+    name: 'Vlog Editing',
+    nameZh: 'Vlog 剪辑',
+    summary: '剪辑日常、旅行与回忆视频，可指定时长、画幅、节奏、原声、字幕和配乐。',
+    scenarios: ['vlog', 'vlog-edit', 'travel-vlog', 'daily-vlog', '旅行记录', '日常记录', '老视频'],
+  },
+  {
     id: '11111111-1240-4000-8000-000000000015',
     slug: 'livestream-to-clips',
     name: 'Livestream to Clips',

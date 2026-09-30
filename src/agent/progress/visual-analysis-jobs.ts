@@ -9,7 +9,7 @@
 import type { MediaAsset } from '../../editor/types';
 import { isMediaSrcReachable } from '../../persist/mediaBlobStore';
 import { sourceRevisionOf } from '../../editor/mediaSourceRevision';
-import { isTerminal, type JobReportBase } from './job-model';
+import type { JobReportBase } from './job-model';
 
 export type VisualAnalysisStatus = 'running' | 'succeeded' | 'failed' | 'not_found';
 
@@ -24,6 +24,8 @@ export interface VisualAnalysisJob {
 }
 
 const jobs = new Map<string, VisualAnalysisJob>();
+const deadlines = new Map<string, number>();
+const ANALYSIS_TIMEOUT_MS = 60_000;
 const POLL_MS = 800;
 
 export interface VisualAnalysisReport extends JobReportBase<VisualAnalysisStatus> {
@@ -51,15 +53,17 @@ export function enqueueVisualAnalysis(
   const prior = jobs.get(asset.id);
   if (prior?.sourceRevision === sourceRevision && prior.status !== 'failed') return;
 
-  jobs.set(asset.id, { assetId: asset.id, sourceRevision, status: 'running' });
+  const pending: VisualAnalysisJob = { assetId: asset.id, sourceRevision, status: 'running' };
+  jobs.set(asset.id, pending);
+  deadlines.set(asset.id, Date.now() + ANALYSIS_TIMEOUT_MS);
   void runAnalysis(asset)
     .then((job) => {
-      if (jobs.get(asset.id)?.sourceRevision === sourceRevision) {
+      if (jobs.get(asset.id) === pending) {
         jobs.set(asset.id, { ...job, sourceRevision });
       }
     })
     .catch((err: unknown) => {
-      if (jobs.get(asset.id)?.sourceRevision !== sourceRevision) return;
+      if (jobs.get(asset.id) !== pending) return;
       jobs.set(asset.id, {
         assetId: asset.id,
         sourceRevision,
@@ -86,9 +90,9 @@ async function runAnalysis(
     const ok = src.startsWith('/media/') ? await isMediaSrcReachable(src) : true;
     return {
       assetId: asset.id,
-      status: ok ? 'succeeded' : 'running',
+      status: ok ? 'succeeded' : 'failed',
       sampleCount: ok ? 1 : 0,
-      note: ok ? 'still image ready' : 'image not reachable yet',
+      note: ok ? 'still image ready' : 'image not reachable; finish uploading or relink the source and retry',
     };
   }
 
@@ -99,6 +103,7 @@ async function runAnalysis(
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ src, count: 4 }),
+        signal: AbortSignal.timeout(ANALYSIS_TIMEOUT_MS),
       });
       if (res.ok) {
         const data = (await res.json().catch(() => ({}))) as {
@@ -156,7 +161,13 @@ export function refreshVisualAnalysis(
 }
 
 export function getVisualAnalysisJob(assetId: string): VisualAnalysisJob | undefined {
-  return jobs.get(assetId);
+  const job = jobs.get(assetId);
+  if (job?.status === 'running' && Date.now() >= (deadlines.get(assetId) ?? Infinity)) {
+    const failed: VisualAnalysisJob = { ...job, status: 'failed', error: 'Visual preparation timed out. Finish uploading or relink the source, then retry.' };
+    jobs.set(assetId, failed);
+    return failed;
+  }
+  return job;
 }
 
 export function visualAnalysisReport(
@@ -179,23 +190,18 @@ export async function waitForVisualAnalysisJobs(
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
-    // Kick re-probe for jobs still "running" with no progress path
-    const pending = assetIds.some((id) => {
-      const job = jobs.get(id);
-      return job !== undefined && !isTerminal(job.status === 'succeeded' ? 'succeeded' : job.status);
-    });
     // Treat succeeded/failed/not_found as terminal; running is not.
     const still = assetIds.some((id) => {
-      const job = jobs.get(id);
+      const job = getVisualAnalysisJob(id);
       if (!job) return false;
       return job.status === 'running';
     });
     if (!still || Date.now() >= deadline) return;
-    void pending;
     await new Promise((r) => setTimeout(r, POLL_MS));
   }
 }
 
 export function __resetVisualAnalysisJobs(): void {
   jobs.clear();
+  deadlines.clear();
 }

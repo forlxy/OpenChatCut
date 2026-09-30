@@ -23,11 +23,18 @@ running editor and is loaded on demand with `load_skill`.
    `http://localhost:5199/api/external-mcp/mcp`.
 2. Call `openchatcut_status`, then `list_projects`. Select a project only when
    the user names it or the current context identifies it.
+   Call `target_project` with that project ID and check `bindingMode`. Offline
+   mode reads saved metadata, transcripts and timeline structure, but cannot
+   inspect video frames or call `load_skill` / `ToolSearch`. For footage-based
+   work open the returned `editorUrl`, reconnect, then target the project again.
 3. Call `load_skill` before specialized work. It is read-only and requires
    neither `begin_edit_session` nor `editSessionId`; available names and support
    files come from the live MCP tool description.
    With progressive exposure enabled, this call reveals the skill's referenced
    tools and emits `tools/list_changed`; refresh the list before continuing.
+   For everyday/travel/retrospective vlogs, load `vlog-edit`. Inspect actual
+   source frames and transcripts; do not treat filenames or inferred tags as
+   verified footage content.
 4. Before project reads or edits, call `begin_edit_session`. Keep its
    `editSessionId` and pass it to every draft-safe editor tool.
 5. If `begin_edit_session` reports an active session, call `list_edit_sessions`.

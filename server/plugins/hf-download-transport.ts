@@ -5,9 +5,16 @@ import { proxyCurlArgs } from '../outbound-proxy.ts';
 
 export const MAX_CACHE_FILE_BYTES = 2 * 1024 * 1024 * 1024; // 2 GiB hard cap
 const CURL_TIMEOUT_S = 1800;
-const CURL_ROUNDS = 6; // each round also retries internally (--retry 8)
+const CURL_ROUNDS = 2;
 const PARALLEL_CHUNKS = 4; // per-connection throttling → parallel byte ranges
 const PARALLEL_MIN_BYTES = 8 * 1024 * 1024;
+
+function sourceMissingOnError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const message = error.message;
+  if (/curl exit 22\b[\s\S]{0,200}\b404\b/i.test(message)) return true;
+  return /"Code"\s*:\s*10990101007/i.test(message);
+}
 
 export interface ProxyTarget { modelId: string; revision: string; filePath: string }
 
@@ -40,16 +47,16 @@ function curlArgs(
 ): string[] {
   const transferLimit = Math.min(MAX_CACHE_FILE_BYTES, maxBytes + 64 * 1024);
   const args = [
-    '-sSL', '--fail', '--max-time', String(CURL_TIMEOUT_S),
+    '-sSL', '--fail', '--connect-timeout', '15', '--max-time', String(CURL_TIMEOUT_S),
     '--max-filesize', String(transferLimit),
     '--speed-limit', '1024', '--speed-time', '30',
     // Deliberately WITHOUT `--retry-all-errors`: that flag makes curl retry
     // deterministic 4xx failures (e.g. a 404 "file not found" on a source that
     // does not mirror the repo), which just burns ~27s of retry delays per
     // round on a doomed source before the outer source loop can fall through.
-    // `--retry 8` still handles transient errors (408/429/5xx, timeouts,
-    // resets), and the outer CURL_ROUNDS loop retries the whole transfer.
-    '--retry', '8', '--retry-delay', '3',
+    // Curl retries a small number of transient failures; the outer loop then
+    // gets one fresh transfer before this source is abandoned.
+    '--retry', '2', '--retry-delay', '2', '--retry-max-time', '120',
     // ModelScope is a domestic CDN: force direct connection (no proxy);
     // other sources keep the configured outbound proxy.
     ...(noProxy ? ['--noproxy', '*'] : proxyCurlArgs()),
@@ -110,6 +117,8 @@ async function downloadSingle(
       await runCurl(url, tmpPath, undefined, context.expectedBytes ?? MAX_CACHE_FILE_BYTES, context, noProxy);
       return;
     } catch (error) {
+      throwIfDownloadAborted(context.signal);
+      if (sourceMissingOnError(error)) throw error;
       lastError = error;
     }
   }
@@ -119,7 +128,7 @@ async function downloadSingle(
 function probeRemoteSize(url: string, expectedBytes: number | undefined, signal?: AbortSignal): Promise<number> {
   throwIfDownloadAborted(signal);
   return new Promise<number>((resolve, reject) => {
-    const child = spawn('curl', ['-sS', '--max-time', '60', '-L', '-r', '0-0', '-D', '-', '-o', '/dev/null', url], {
+    const child = spawn('curl', ['-sS', '--fail', '--connect-timeout', '15', '--max-time', '30', '-L', '-r', '0-0', '-D', '-', '-o', process.platform === 'win32' ? 'NUL' : '/dev/null', ...proxyCurlArgs(), url], {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let stdout = '';
@@ -209,6 +218,7 @@ async function downloadParallel(url: string, size: number, tmpPath: string, cont
         () => runCurl(url, part.file, part.range, part.bytes, context)
       )));
       if (!lastError) break;
+      if (sourceMissingOnError(lastError)) throw lastError;
     }
     if (lastError) throw lastError;
     await mergeDownloadedParts(parts.map((part) => part.file), tmpPath, size);

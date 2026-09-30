@@ -2,21 +2,14 @@ import type { BrowserWindow } from 'electron';
 import { getKey } from '../server/keystore.ts';
 
 export const DESKTOP_MIN_SCALE = 2 / 3;
-/**
- * The density the desktop ships with. The editor was authored at Chromium's 100% and read
- * as too small in daily use; 110% was the setting people reached for, so it is now the
- * default: "100%" in Settings means this base, and the user scale composes on top of it.
- * A UI_SCALE saved before the change is relative to the old base of 1 and is rebased once
- * at startup (ui-scale-migration.ts) so nobody's window jumps after updating.
- */
-export const DESKTOP_UI_SCALE_BASE = 1.1;
-/** User-set UI scale bounds (issue #85), relative to the base. 1 = the shipped density. */
+/** User-set UI scale bounds. */
 export const DESKTOP_UI_SCALE_MIN = 0.8;
 export const DESKTOP_UI_SCALE_MAX = 1.5;
 export const DESKTOP_UI_SCALE_KEY = 'UI_SCALE';
 
 /** Parse the saved UI scale, clamping to the supported range. */
 export function parseUserUiScale(value: string | undefined): number {
+  if (!value?.trim()) return 1;
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return 1;
   return Math.min(DESKTOP_UI_SCALE_MAX, Math.max(DESKTOP_UI_SCALE_MIN, parsed));
@@ -46,10 +39,8 @@ interface DesktopWindowScaleInput {
   contentHeight: number;
   frameWidth?: number;
   frameHeight?: number;
-  /** User-set UI scale multiplier, relative to the base (default 1 = the shipped density). */
+  /** User-set UI scale multiplier (default 1 preserves existing behavior). */
   userScale?: number;
-  /** The shipped density; tests pass 1 to see the pre-base numbers. */
-  baseScale?: number;
 }
 
 interface DesktopWorkArea {
@@ -92,30 +83,14 @@ export function resolveInitialDesktopWindowBounds(
 export function resolveDesktopWindowScale({
   baselineContentWidth,
   baselineContentHeight,
-  contentWidth,
-  contentHeight,
   frameWidth = 0,
   frameHeight = 0,
   userScale = 1,
-  baseScale = DESKTOP_UI_SCALE_BASE,
 }: DesktopWindowScaleInput): DesktopWindowScaleResolution {
   const baselineWidth = validDimension(baselineContentWidth);
   const baselineHeight = validDimension(baselineContentHeight);
-  const fittedScale = Math.min(
-    1,
-    validDimension(contentWidth) / baselineWidth,
-    validDimension(contentHeight) / baselineHeight,
-  );
-  const clampedFitted = fittedScale <= DESKTOP_MIN_SCALE ? DESKTOP_MIN_SCALE : fittedScale;
-  // Base and user scale compose on top of shrink-to-fit: enlarging the window
-  // never passes 100% fitted, so a >1 user scale is the only way to grow. The
-  // minimum window size below stays in the authored canvas's own units: the base
-  // makes the layout see a proportionally narrower canvas at every size, which is
-  // exactly what a saved 110% did before it became the default.
-  // Keep the exact floor value at the default scale.
-  const zoomFactor = userScale === 1 && clampedFitted === DESKTOP_MIN_SCALE
-    ? baseScale * DESKTOP_MIN_SCALE
-    : Math.round(baseScale * userScale * clampedFitted * 1_000) / 1_000;
+  // Resizing changes available workspace, not the user's chosen text size.
+  const zoomFactor = parseUserUiScale(String(userScale));
 
   const portraitPreviewWidth = baselineWidth * DESKTOP_PREVIEW_WIDTH_RATIO;
   const portraitMinimumContentHeight = DESKTOP_EDITOR_HEADER_HEIGHT
@@ -135,13 +110,11 @@ export function resolveDesktopWindowScale({
 }
 
 /**
- * Scale the complete renderer when the native window becomes smaller than its
- * startup canvas. This keeps panels, dialogs, and timeline controls in the same
- * proportions instead of clipping individual regions.
+ * Apply the saved page scale independently of native window dimensions.
  */
 const windowScaleState = new WeakMap<BrowserWindow, DesktopWindowScaleInput>();
 
-/** Re-apply the composed scale (user scale × shrink-to-fit). Called on
+/** Re-apply the saved scale. Called on
  *  resize and after the saved UI scale changes (settings / shortcuts). */
 export function applyResponsiveWindowScale(win: BrowserWindow): void {
   if (win.isDestroyed() || win.webContents.isDestroyed()) return;

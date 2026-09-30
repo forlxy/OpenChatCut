@@ -16,9 +16,16 @@ export function mcpSessionStatus(input: McpSessionStatusInput): Record<string, u
     sessionBinding: input.binding,
     bindingMode: input.bindingMode,
     availableToolTier: serverDirect ? 'server-direct' : 'browser',
+    capabilities: {
+      projectData: true,
+      visualInspection: !serverDirect,
+      skillDiscovery: !serverDirect,
+      manualApproval: !serverDirect,
+    },
     offlineFallback: 'Target an existing stored project with no browser owner, then begin with approvalMode="auto".',
     browserRequiredFor: [
       'visual/canvas inspection',
+      'load_skill / ToolSearch',
       'generation',
       'upload',
       'network',
