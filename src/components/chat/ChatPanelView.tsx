@@ -234,6 +234,7 @@ function ComposerInput({ controller }: { controller: ChatPanelController }) {
     pasting={composer.pendingAttachmentCount > 0}
     pendingAttachmentCount={composer.pendingAttachmentCount}
     pasteError={composer.pasteError} onDismissPasteError={() => composer.setPasteError(null)}
+    enhanceError={composer.enhanceError} onDismissEnhanceError={() => composer.setEnhanceError(null)}
     onDropEditorItem={actions.onDropEditorItem} taRef={composer.taRef}
     placeholder={agent.messages.length === 0
       ? t('描述你想要创建的内容...') : t('告诉 AI 要做哪些修改 - @ 引用素材')} />;

@@ -21,7 +21,14 @@ import { hasEditorDrag, parseEditorDrag } from '../../editor/editorDrag';
 import { droppedFiles, hasExternalFiles } from '../../media/externalFileDrop';
 import { AgentComposerSettings } from './AgentComposerSettings';
 import { ComposerSlashPopover, ComposerStatus } from './ChatComposerOverlays';
-import { REF_ICON, type ChatComposerProps, type ChatMode, type RefItem } from './ChatComposerContract';
+import {
+  COMPOSER_ENHANCE_ERROR_ID,
+  COMPOSER_IMPORT_STATUS_ID,
+  REF_ICON,
+  type ChatComposerProps,
+  type ChatMode,
+  type RefItem,
+} from './ChatComposerContract';
 
 export type { ChatMode, RefItem } from './ChatComposerContract';
 
@@ -41,7 +48,7 @@ export function ChatComposer(props: ChatComposerProps) {
     autoApply, onAutoApplyChange, contextUsage, selecting, onToggleSelecting,
     creativeMode, onCreativeModeChange, references, onInsertRef,
     selectedRefs = [], onRemoveRef, onPasteFiles, onDropFiles, pasting, pendingAttachmentCount = 0,
-    pasteError, onDismissPasteError,
+    pasteError, onDismissPasteError, enhanceError, onDismissEnhanceError,
     onDropEditorItem,
     taRef, placeholder,
   } = props;
@@ -126,12 +133,16 @@ export function ChatComposer(props: ChatComposerProps) {
   };
   const attachmentsPending = hasPendingComposerAttachment(pasting, pendingAttachmentCount);
   const canSend = !!value.trim() && !running && !attachmentsPending && modelReady;
-  // Prompt rewriting uses the configured API model directly. Codex remains
-  // available for normal chat runs, but should not expose a button that will
-  // fail only after the user clicks it.
+  const hasApiModel = modelState.choices.some((choice) => choice.backend === 'api');
+  // Prompt rewriting uses the configured API model directly. A subscription
+  // model can stay visible while the enhancer uses this configured fallback.
   const canEnhance = !!value.trim() && !enhancing && !running && !attachmentsPending
-    && modelReady && activeModel?.backend === 'api';
+    && modelReady && hasApiModel;
   const pendingReason = t('请等待附件导入完成。');
+  const describedBy = [
+    attachmentsPending || pasteError ? COMPOSER_IMPORT_STATUS_ID : null,
+    enhanceError ? COMPOSER_ENHANCE_ERROR_ID : null,
+  ].filter((id): id is string => !!id).join(' ') || undefined;
   const sendTitle = attachmentsPending
     ? pendingReason
     : modelReady
@@ -343,6 +354,8 @@ export function ChatComposer(props: ChatComposerProps) {
         onCancelSkill={() => onCreativeModeChange(null)}
         onRemoveRef={onRemoveRef}
         onDismissPasteError={onDismissPasteError}
+        enhanceError={enhanceError}
+        onDismissEnhanceError={onDismissEnhanceError}
       />
       <textarea
         ref={taRef}
@@ -363,17 +376,21 @@ export function ChatComposer(props: ChatComposerProps) {
               return;
             }
             if ((event.key === 'Enter' || event.key === 'Tab') && slashOpen) {
-              // With the slash menu open, Enter/Tab must never fall through to
-              // submitting the raw command text, even when there are zero
-              // matches (e.g. a typo'ed skill name).
-              event.preventDefault();
-              if (slashMatches.length) activateSlash(slashMatches[Math.max(0, slashIndex)]);
-              return;
+              if (slashMatches.length) {
+                event.preventDefault();
+                activateSlash(slashMatches[Math.max(0, slashIndex)]);
+                return;
+              }
+              // An unmatched slash draft is ordinary text. Let Enter reach
+              // the normal submit gate, and let Tab move focus as usual.
+              if (event.key === 'Tab') {
+                setSlashOpen(false);
+                setSlashIndex(-1);
+              }
             }
             if (event.key === 'Escape') {
               setSlashOpen(false);
               setSlashIndex(-1);
-              onChange('');
               return;
             }
           }
@@ -410,7 +427,7 @@ export function ChatComposer(props: ChatComposerProps) {
           if (files.length > 0 && onPasteFiles) { e.preventDefault(); onPasteFiles(files); }
         }}
         placeholder={placeholder ?? t('告诉 AI 要做哪些修改 - @ 引用素材')}
-        aria-describedby={attachmentsPending ? 'cc-chat-composer-import-status' : undefined}
+        aria-describedby={describedBy}
         rows={1}
         style={{
           flex: 1, width: '100%', minHeight: 28, minWidth: 0, resize: 'none',

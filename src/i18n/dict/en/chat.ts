@@ -281,6 +281,8 @@ export default {
   '移除引用': 'Remove reference',
   '导入素材中…': 'Importing media…',
   '请等待附件导入完成。': 'Wait for attachment imports to finish.',
+  '附件导入失败：{error}': 'Attachment import failed: {error}',
+  '提示词增强失败：{error}': 'Prompt enhancement failed: {error}',
   '关闭': 'Close',
   '技能命令补全': 'Skill command completion',
   '创作工作流': 'Creative workflows',

@@ -37,10 +37,15 @@ export interface ChatComposerProps {
   pendingAttachmentCount?: number;
   pasteError?: string | null;
   onDismissPasteError?: () => void;
+  enhanceError?: string | null;
+  onDismissEnhanceError?: () => void;
   onDropEditorItem?: (payload: EditorDragPayload) => void;
   taRef: RefObject<HTMLTextAreaElement | null>;
   placeholder?: string;
 }
+
+export const COMPOSER_IMPORT_STATUS_ID = 'cc-chat-composer-import-status';
+export const COMPOSER_ENHANCE_ERROR_ID = 'cc-chat-composer-enhance-error';
 
 export const REF_ICON: Record<RefItem['kind'], IconName> = {
   video: 'filePlay', image: 'filePlay', gif: 'image', svg: 'image', document: 'text', file: 'paperclip',

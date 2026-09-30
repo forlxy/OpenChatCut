@@ -93,6 +93,8 @@ export interface ChatComposerController {
   setSelecting: StateSetter<boolean>;
   pasteError: string | null;
   setPasteError: StateSetter<string | null>;
+  enhanceError: string | null;
+  setEnhanceError: StateSetter<string | null>;
   visibleMessageCount: number;
   setVisibleMessageCount: StateSetter<number>;
   taRef: MutableValue<HTMLTextAreaElement | null>;
@@ -145,6 +147,7 @@ function useComposerState(projectId: string): ChatComposerController {
   const attachmentLifecycleRef = useRef(attachmentLifecycle);
   const [selecting, setSelecting] = useState(false);
   const [pasteError, setPasteError] = useState<string | null>(null);
+  const [enhanceError, setEnhanceError] = useState<string | null>(null);
   const [visibleMessageCount, setVisibleMessageCount] = useState(MESSAGE_WINDOW_SIZE);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const commitSelectedRefs = useCallback((references: RefItem[]) => {
@@ -165,7 +168,8 @@ function useComposerState(projectId: string): ChatComposerController {
     selectedRefs, selectedRefsRef, commitSelectedRefs, attachmentLifecycle,
     attachmentLifecycleRef, commitAttachmentLifecycle, invalidateAttachmentDraft,
     pendingAttachmentCount: pendingChatAttachmentCount(attachmentLifecycle), selecting,
-    setSelecting, pasteError, setPasteError, visibleMessageCount, setVisibleMessageCount, taRef,
+    setSelecting, pasteError, setPasteError, enhanceError, setEnhanceError,
+    visibleMessageCount, setVisibleMessageCount, taRef,
   };
 }
 
@@ -176,6 +180,7 @@ function useComposerProject(composer: ChatComposerController, projectId: string)
     setMode,
     commitSelectedRefs,
     setPasteError,
+    setEnhanceError,
     setVisibleMessageCount,
     input,
     mode,
@@ -187,6 +192,7 @@ function useComposerProject(composer: ChatComposerController, projectId: string)
     setMode(loadChatMode(projectId));
     commitSelectedRefs([]);
     setPasteError(null);
+    setEnhanceError(null);
     setVisibleMessageCount(MESSAGE_WINDOW_SIZE);
   }, [
     commitSelectedRefs,
@@ -195,6 +201,7 @@ function useComposerProject(composer: ChatComposerController, projectId: string)
     setInput,
     setMode,
     setPasteError,
+    setEnhanceError,
     setVisibleMessageCount,
   ]);
   useEffect(() => {
@@ -214,6 +221,7 @@ function useComposerSeed(
     if (!seed) return;
     composer.invalidateAttachmentDraft();
     composer.setPasteError(null);
+    composer.setEnhanceError(null);
     composer.setInput(seed.text);
     composer.commitSelectedRefs(seed.references ?? []);
     if (!collapsed) composer.taRef.current?.focus();
@@ -261,7 +269,7 @@ function useMessageActions(
     if (!composer.input.trim() || composer.enhancing || agent.running) return;
     if (!isAgentModelReady(getAgentModelSnapshot()) || pendingChatAttachmentCount(composer.attachmentLifecycleRef.current) > 0) return;
     composer.setEnhancing(true);
-    composer.setPasteError(null);
+    composer.setEnhanceError(null);
     const original = composer.input;
     try {
       const enhanced = await agent.enhance(original);
@@ -269,7 +277,7 @@ function useMessageActions(
       composer.setInput((current) => current === original ? enhanced : current);
       composer.taRef.current?.focus();
     } catch (error) {
-      composer.setPasteError(error instanceof Error ? error.message : String(error));
+      composer.setEnhanceError(error instanceof Error ? error.message : String(error));
     } finally {
       composer.setEnhancing(false);
     }

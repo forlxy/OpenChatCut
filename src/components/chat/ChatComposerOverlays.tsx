@@ -4,7 +4,12 @@ import type { SkillDefinition } from '../../agent/skills/skill-types';
 import { localizedCatalogText, tData, useT } from '../../i18n/locale';
 import { theme } from '../../theme';
 import { Icon } from '../icons';
-import { REF_ICON, type RefItem } from './ChatComposerContract';
+import {
+  COMPOSER_ENHANCE_ERROR_ID,
+  COMPOSER_IMPORT_STATUS_ID,
+  REF_ICON,
+  type RefItem,
+} from './ChatComposerContract';
 import { ComposerPopover } from './ComposerPopover';
 
 function referenceChipText(reference: RefItem): string {
@@ -67,7 +72,7 @@ function ImportStatus({ pending, reason, error, onDismiss }: {
   const t = useT();
   if (!pending && !error) return null;
   return (
-    <div id="cc-chat-composer-import-status" role="status" aria-live="polite"
+    <div id={COMPOSER_IMPORT_STATUS_ID} role="status" aria-live="polite"
       style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, fontSize: 11.5 }}>
       {pending && (
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: theme.accent }}>
@@ -76,7 +81,9 @@ function ImportStatus({ pending, reason, error, onDismiss }: {
       )}
       {error && (
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: theme.accent, minWidth: 0 }}>
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{error}</span>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {t('附件导入失败：{error}', { error })}
+          </span>
           {onDismiss && (
             <button type="button" title={t('关闭')} onClick={onDismiss}
               style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.accent, padding: 0, lineHeight: 0, display: 'grid', flexShrink: 0 }}>
@@ -85,6 +92,30 @@ function ImportStatus({ pending, reason, error, onDismiss }: {
           )}
         </span>
       )}
+    </div>
+  );
+}
+
+function EnhanceErrorStatus({ error, onDismiss }: {
+  error?: string | null;
+  onDismiss?: () => void;
+}) {
+  const t = useT();
+  if (!error) return null;
+  return (
+    <div id={COMPOSER_ENHANCE_ERROR_ID} role="alert" aria-live="assertive"
+      style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, fontSize: 11.5 }}>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: theme.accent, minWidth: 0 }}>
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {t('提示词增强失败：{error}', { error })}
+        </span>
+        {onDismiss && (
+          <button type="button" title={t('关闭')} onClick={onDismiss}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.accent, padding: 0, lineHeight: 0, display: 'grid', flexShrink: 0 }}>
+            <Icon name="x" size={11} />
+          </button>
+        )}
+      </span>
     </div>
   );
 }
@@ -98,6 +129,8 @@ export function ComposerStatus(props: {
   onCancelSkill: () => void;
   onRemoveRef?: (id: string) => void;
   onDismissPasteError?: () => void;
+  enhanceError?: string | null;
+  onDismissEnhanceError?: () => void;
 }) {
   return (
     <>
@@ -105,6 +138,7 @@ export function ComposerStatus(props: {
       <ReferenceBadges references={props.selectedRefs} onRemove={props.onRemoveRef} />
       <ImportStatus pending={props.attachmentsPending} reason={props.pendingReason}
         error={props.pasteError} onDismiss={props.onDismissPasteError} />
+      <EnhanceErrorStatus error={props.enhanceError} onDismiss={props.onDismissEnhanceError} />
     </>
   );
 }
